@@ -1,1 +1,118 @@
+-- SERVER HOP MESSENGER (Auto-Executes on every hop)
+-- Lua script for Roblox executors
 
+local queue_on_teleport = syn and syn.queue_on_teleport 
+    or queue_on_teleport 
+    or (fluxus and fluxus.queue_on_teleport) 
+    or (getgenv and getgenv().queue_on_teleport) 
+    or function(code) warn("[HopMsg] queue_on_teleport not supported") end
+
+local OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Orion/main/source'))()
+
+-- Variables (persists via _G across hops)
+local MessageText = "Hello! This is an automated server hop message :)"
+_G.HopMsgRunning = _G.HopMsgRunning or false
+
+-- Functions
+local function SendMessage()
+    pcall(function()
+        game:GetService("ReplicatedStorage")
+            :WaitForChild("DefaultChatSystemChatEvents")
+            :WaitForChild("SayMessageRequest")
+            :FireServer(MessageText, "All")
+    end)
+end
+
+local function GetRandomServer()
+    local servers = {}
+    local success, resp = pcall(function()
+        return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+    end)
+    if success then
+        local data = game:GetService("HttpService"):JSONDecode(resp).data
+        for _, v in ipairs(data) do
+            if v.playing < v.maxPlayers and v.id ~= game.JobId then
+                table.insert(servers, v.id)
+            end
+        end
+    end
+    return #servers > 0 and servers[math.random(1, #servers)] or nil
+end
+
+local function ServerHop()
+    local serverId = GetRandomServer()
+    if serverId then
+        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, serverId)
+    else
+        game:GetService("TeleportService"):Teleport(game.PlaceId)
+    end
+end
+
+local runningLoop = false
+local function RunLoop()
+    if runningLoop then return end
+    runningLoop = true
+    _G.HopMsgRunning = true
+
+    while _G.HopMsgRunning do
+        for i = 1, 10 do
+            if not _G.HopMsgRunning then break end
+            SendMessage()
+            task.wait(2)
+        end
+
+        if not _G.HopMsgRunning then break end
+
+        -- Queue auto-reload for next server
+        queue_on_teleport([[_G.HopMsgRunning = true; loadstring(game:HttpGet("https://raw.githubusercontent.com/InfinityyExternal/auto-bot-messager/main/auto-bot.lua"))()]])
+
+        ServerHop()
+        task.wait(0.5)
+    end
+
+    runningLoop = false
+end
+
+-- UI Creation
+local Window = OrionLib:MakeWindow({
+    Name = "Server Hop Messenger",
+    HidePremium = false,
+    SaveConfig = false,
+    IntroEnabled = false
+})
+
+local Tab = Window:MakeTab({
+    Name = "Main",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+Tab:AddTextbox({
+    Name = "Message",
+    Default = MessageText,
+    TextDisappear = false,
+    Callback = function(Value)
+        MessageText = Value
+    end    
+})
+
+Tab:AddButton({
+    Name = "Start Spamming & Hopping",
+    Callback = function()
+        RunLoop()
+        OrionLib:MakeNotification({Name = "Started", Content = "10 messages → hop → repeat", Time = 5})
+    end    
+})
+
+Tab:AddButton({
+    Name = "Stop",
+    Callback = function()
+        _G.HopMsgRunning = false
+        OrionLib:MakeNotification({Name = "Stopped", Content = "Stops after current cycle", Time = 5})
+    end    
+})
+
+-- Auto-start if coming from previous hop
+if _G.HopMsgRunning then
+    task.spawn(RunLoop)
+end
