@@ -1,5 +1,5 @@
 -- SERVER HOP MESSENGER (Auto-Executes on every hop)
--- Lua script for Roblox executors
+-- Now using Rayfield UI (better alternative to Orion)
 
 local queue_on_teleport = syn and syn.queue_on_teleport 
     or queue_on_teleport 
@@ -7,13 +7,14 @@ local queue_on_teleport = syn and syn.queue_on_teleport
     or (getgenv and getgenv().queue_on_teleport) 
     or function(code) warn("[HopMsg] queue_on_teleport not supported") end
 
-local OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Orion/main/source'))()
+-- Load Rayfield (single stable URL)
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- Variables (persists via _G across hops)
 local MessageText = "Hello! This is an automated server hop message :)"
 _G.HopMsgRunning = _G.HopMsgRunning or false
 
--- Functions
+-- [Your functions stay exactly the same: SendMessage, GetRandomServer, ServerHop, RunLoop]
 local function SendMessage()
     pcall(function()
         game:GetService("ReplicatedStorage")
@@ -63,7 +64,7 @@ local function RunLoop()
 
         if not _G.HopMsgRunning then break end
 
-        -- Queue auto-reload for next server
+        -- Queue auto-reload for next server (update URL to your raw file!)
         queue_on_teleport([[_G.HopMsgRunning = true; loadstring(game:HttpGet("https://raw.githubusercontent.com/InfinityyExternal/auto-bot-messager/main/auto-bot.lua"))()]])
 
         ServerHop()
@@ -73,46 +74,70 @@ local function RunLoop()
     runningLoop = false
 end
 
--- UI Creation
-local Window = OrionLib:MakeWindow({
+-- Rayfield UI (cleaner & more modern)
+local Window = Rayfield:CreateWindow({
     Name = "Server Hop Messenger",
-    HidePremium = false,
-    SaveConfig = false,
-    IntroEnabled = false
+    LoadingTitle = "Server Hop Messenger",
+    LoadingSubtitle = "by [your name]",
+    ConfigurationSaving = {
+        Enabled = false,  -- no need for config save here
+        FolderName = nil,
+        FileName = "HopMsgConfig"
+    },
+    Discord = {  -- optional: auto-join your Discord if you have one
+        Enabled = false,
+        Invite = "",
+        RememberJoins = true
+    },
+    KeySystem = false  -- no key needed
 })
 
-local Tab = Window:MakeTab({
-    Name = "Main",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
+local Tab = Window:CreateTab("Main", 4483345998)  -- icon ID or 0 for none
+
+-- Textbox for message
+local MessageInput = Tab:CreateInput({
+    Name = "Message Text",
+    PlaceholderText = "Enter your message here...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        MessageText = Text
+    end
 })
 
-Tab:AddTextbox({
-    Name = "Message",
-    Default = MessageText,
-    TextDisappear = false,
-    Callback = function(Value)
-        MessageText = Value
-    end    
-})
-
-Tab:AddButton({
-    Name = "Start Spamming & Hopping",
+-- Start button
+Tab:CreateButton({
+    Name = "▶ Start (10 msgs → hop → repeat)",
     Callback = function()
         RunLoop()
-        OrionLib:MakeNotification({Name = "Started", Content = "10 messages → hop → repeat", Time = 5})
-    end    
+        Rayfield:Notify({
+            Title = "Started",
+            Content = "Sending 10 messages then hopping forever...",
+            Duration = 5,
+            Image = 4483345998  -- optional icon
+        })
+    end
 })
 
-Tab:AddButton({
-    Name = "Stop",
+-- Stop button
+Tab:CreateButton({
+    Name = "⏹ Stop",
     Callback = function()
         _G.HopMsgRunning = false
-        OrionLib:MakeNotification({Name = "Stopped", Content = "Stops after current cycle", Time = 5})
-    end    
+        Rayfield:Notify({
+            Title = "Stopped",
+            Content = "Will stop after current batch.",
+            Duration = 5
+        })
+    end
 })
 
--- Auto-start if coming from previous hop
+-- Auto-start from previous hop
 if _G.HopMsgRunning then
     task.spawn(RunLoop)
 end
+
+Rayfield:Notify({
+    Title = "Loaded",
+    Content = "Ready! Enter message and click Start.",
+    Duration = 4
+})
